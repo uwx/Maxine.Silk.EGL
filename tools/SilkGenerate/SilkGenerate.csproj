@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <IsPackable>false</IsPackable>
+    <AssemblyName>silkgenerate</AssemblyName>
+    <RootNamespace>SilkGenerate</RootNamespace>
+    <Description>Runs the Silk.NET.BuildTools binding generator over generator.json.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Silk.NET.BuildTools" Version="2.23.0" />
+  </ItemGroup>
+
+</Project>

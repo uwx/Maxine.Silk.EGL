@@ -1,0 +1,13 @@
+<Project>
+
+    <!-- Build tooling runs on the SDK rather than being consumed as a library, so it must not
+         inherit the binding target frameworks from the root Directory.Build.props. This file
+         shadows the root one (MSBuild stops at the nearest ancestor), so it chains to it
+         explicitly after opting out. -->
+    <PropertyGroup>
+        <SilkBuildTooling>true</SilkBuildTooling>
+    </PropertyGroup>
+
+    <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+</Project>

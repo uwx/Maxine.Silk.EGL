@@ -1,0 +1,106 @@
+name: ANGLE
+
+# Builds the ANGLE native binaries (libEGL + libGLESv2) for every supported platform and commits
+# them into native/Silk.NET.OpenGLES.ANGLE.Native/runtimes/<rid>/native, from where the NuGet
+# package picks them up.
+#
+# The binaries are committed rather than uploaded as artefacts because "pack" reads them straight
+# out of the working tree. ANGLE takes a long time to build, so this runs on manual dispatch and
+# on changes to the build script, not on every commit.
+
+on:
+    workflow_dispatch:
+    push:
+        branches:
+            - main
+        paths:
+            - build/nuke/Native/Angle.cs
+            - build/nuke/Build.Support.cs
+            - build/nuke/Build.cs
+            - .github/workflows/angle.yml
+
+concurrency:
+    # ANGLE builds push to the branch they run on, so overlapping runs on the same ref would race
+    # to push. Cancel the older one.
+    group: angle-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    Build:
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - os: ubuntu-22.04
+                      name: Linux
+                      nuke_invoke: ./build.sh
+                      runtimes: linux-x64
+                    - os: windows-2022
+                      name: Windows
+                      nuke_invoke: ./build.cmd
+                      runtimes: win-x64, win-x86
+                    - os: macos-latest-xlarge
+                      name: Darwin
+                      nuke_invoke: ./build.sh
+                      runtimes: osx
+        name: ${{ matrix.name }} Build
+        runs-on: ${{ matrix.os }}
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  # The build commits the binaries it produces, so it needs a token that can push.
+                  token: ${{ secrets.PUBLISH_TOKEN }}
+
+            - name: Setup .NET
+              uses: actions/setup-dotnet@v4
+              with:
+                  dotnet-version: 8.0.x
+
+            - name: Configure git
+              run: |
+                  git config --local user.email "github-actions[bot]@users.noreply.github.com"
+                  git config --local user.name "github-actions[bot]"
+
+            # depot_tools' `fetch` is a Python script.
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: "3.10"
+
+            - name: Extra prerequisites
+              if: matrix.os == 'ubuntu-22.04'
+              run: |
+                  # The build runs ANGLE's own install-build-deps.sh, which installs the bulk of
+                  # what's needed. These are the X11/GL development headers the GL and Vulkan
+                  # backends link against, installed up front so a hiccup in that script doesn't
+                  # leave the build without them.
+                  sudo apt-get update
+                  sudo apt-get install -y libx11-xcb-dev libxext-dev libxdamage-dev libgl-dev
+
+            - name: Build ANGLE
+              run: ${{ matrix.nuke_invoke }} Angle
+              env:
+                  SILKNET_EGL_PUBLISH: "1"
+
+            - name: Verify binaries
+              shell: bash
+              run: |
+                  set -e
+                  fail=0
+                  for rid in $(echo "${{ matrix.runtimes }}" | tr ',' ' '); do
+                      dir="native/Silk.NET.OpenGLES.ANGLE.Native/runtimes/$rid/native"
+                      if [ ! -d "$dir" ]; then
+                          echo "::error::expected output directory $dir does not exist"
+                          fail=1
+                          continue
+                      fi
+                      echo "$dir:"
+                      ls -la "$dir"
+                      for lib in libEGL libGLESv2; do
+                          found=$(find "$dir" -maxdepth 1 -iname "$lib.*" | head -1)
+                          if [ -z "$found" ]; then
+                              echo "::error::$dir is missing a $lib library"
+                              fail=1
+                          fi
+                      done
+                  done
+                  exit $fail

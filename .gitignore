@@ -1,0 +1,52 @@
+## Build results
+[Dd]ebug/
+[Rr]elease/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+artifacts/
+*.binlog
+*.nupkg
+*.snupkg
+
+## Visual Studio / Rider / VS Code
+.vs/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.user
+*.suo
+*.userprefs
+*.sln.docstates
+*.DotSettings.user
+
+## NUKE
+.nuke/temp/
+
+## Native build outputs
+#
+# The ANGLE binaries ARE committed (runtimes/<rid>/native) because the NuGet package is assembled
+# from the working tree. The rules below only exclude build scratch space, never the binaries
+# themselves; keep the negations if you add broader patterns.
+native/**/bin/
+native/**/obj/
+
+## OS noise
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+## NuGet
+*.nuget.props
+*.nuget.targets
+project.lock.json
+project.fragment.lock.json
+
+## Kotlin/Java artifacts produced by the Android bindings toolchain, if ever enabled
+*.aar
+*.java

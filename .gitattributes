@@ -1,0 +1,16 @@
+# Native binaries are committed to this repository (runtimes/<rid>/native). Without these
+# attributes Git treats them as text: it normalises line endings on checkout and attempts to
+# merge or diff them, either of which corrupts the file. This is not optional.
+*.dll   binary
+*.so    binary
+*.so.*  binary
+*.dylib binary
+
+# Generated bindings are produced by tools/SilkGenerate and should be committed as-is, so they
+# are excluded from language statistics and treated as generated.
+*.gen.cs linguist-generated=true
+
+# Keep Windows line endings consistent for the build scripts that must run on Windows.
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.sh  text eol=lf

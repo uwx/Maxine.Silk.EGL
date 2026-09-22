@@ -1,0 +1,79 @@
+name: CI
+
+on:
+    push:
+        branches:
+            - main
+    pull_request:
+    workflow_dispatch:
+
+jobs:
+    build:
+        name: Build
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup .NET
+              uses: actions/setup-dotnet@v4
+              with:
+                  dotnet-version: 8.0.x
+
+            - name: Restore
+              run: dotnet restore Silk.NET.EGL.sln
+
+            - name: Build
+              run: dotnet build Silk.NET.EGL.sln --no-restore -c Release
+
+    # Regenerating must not change anything. If it does, the committed bindings are stale relative
+    # to generator.json and the two have drifted apart.
+    generation:
+        name: Generation is up to date
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup .NET
+              uses: actions/setup-dotnet@v4
+              with:
+                  dotnet-version: 8.0.x
+
+            - name: Regenerate bindings
+              run: dotnet run --project tools/SilkGenerate -- generator.json
+
+            - name: Fail if regeneration changed anything
+              run: |
+                  if ! git diff --quiet; then
+                      echo "::error::Running the generator produced changes. Commit the regenerated sources."
+                      git --no-pager diff --stat
+                      exit 1
+                  fi
+
+    pack:
+        name: Pack
+        runs-on: ubuntu-latest
+        needs: build
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup .NET
+              uses: actions/setup-dotnet@v4
+              with:
+                  dotnet-version: 8.0.x
+
+            - name: Pack bindings
+              run: dotnet pack Silk.NET.EGL.sln -c Release -o artifacts
+
+            - name: Pack ANGLE native package
+              run: |
+                  dotnet pack native/Silk.NET.OpenGLES.ANGLE.Native/Silk.NET.OpenGLES.ANGLE.Native.csproj \
+                      -c Release -o artifacts
+
+            - name: List packages
+              run: ls -la artifacts
+
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: packages
+                  path: artifacts/*.nupkg
+                  if-no-files-found: error

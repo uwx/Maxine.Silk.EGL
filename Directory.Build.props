@@ -1,0 +1,38 @@
+<Project>
+
+    <PropertyGroup>
+        <!-- Matches the Silk.NET 2.x binding packages these are companions to, so they can be
+             consumed side by side with Silk.NET.OpenGL, Silk.NET.OpenGLES and friends.
+             Build tooling (tools/, build/nuke/) sets SilkBuildTooling and supplies its own TFM,
+             because it runs on the SDK rather than being consumed as a library. -->
+        <TargetFrameworks Condition="'$(SilkBuildTooling)' != 'true'">netstandard2.0;netstandard2.1;netcoreapp3.1;net5.0</TargetFrameworks>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <LangVersion>preview</LangVersion>
+
+        <Version>2.23.0</Version>
+        <Authors>.NET Foundation and Contributors</Authors>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <RepositoryType>git</RepositoryType>
+        <RepositoryUrl>https://github.com/SilkCommunity/Silk.NET.EGL.git</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/SilkCommunity/Silk.NET.EGL</PackageProjectUrl>
+        <PackageTags>EGL;OpenGL;OpenGLES;GLES;ANGLE;Khronos;bindings;interop;graphics;Silk.NET;SilkTouch</PackageTags>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(SilkBuildTooling)' != 'true'">
+        <Description Condition="'$(Description)' == ''">C# bindings for EGL, the Khronos platform-independent API for managing graphics contexts and surfaces.</Description>
+        <!-- Ship symbols and a source link, like the Silk.NET binding packages. -->
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <!-- The bindings multi-target netcoreapp3.1 and net5.0 to match Silk.NET 2.x, whose
+             transitive dependencies emit "doesn't support this TFM" warnings for every package at
+             those TFMs. That noise drowns out real warnings. -->
+        <SuppressTfmSupportBuildWarnings>true</SuppressTfmSupportBuildWarnings>
+    </PropertyGroup>
+
+</Project>

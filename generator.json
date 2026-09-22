@@ -1,0 +1,94 @@
+{
+  "tasks": [
+    {
+      "profileName": "EGL",
+      "sources": [
+        "https://raw.githubusercontent.com/KhronosGroup/EGL-Registry/main/api/egl.xml"
+      ],
+      "mode": "ConvertConstruct",
+      "cacheDir": "build/cache",
+      "cacheKey": "egl",
+      "controlDescriptors": [
+        "allow-redefinitions"
+      ],
+      "converter": {
+        "reader": "gl",
+        "constructor": "gl",
+        "className": "EGL"
+      },
+      "prefix": "egl",
+      "clang": {},
+      "bakery": {
+        "profileNames": [
+          "egl"
+        ]
+      },
+      "output": {
+        "mode": "Default",
+        "path": "src",
+        "licenseFile": "build/LICENSE_HEADER.txt",
+        "props": "msbuild.props"
+      },
+      "namespace": "Silk.NET.EGL",
+      "extensionsNamespace": "Silk.NET.EGL.Extensions",
+      "nameContainer": {
+        "linux-x64": "libEGL.so.1",
+        "win-x64": "libEGL.dll",
+        "win-x86": "libEGL.dll",
+        "osx-x64": "/System/Library/Frameworks/EGL.framework/EGL",
+        "android": "libEGL.so.1",
+        "iOS": "/System/Library/Frameworks/EGL.framework/EGL",
+        "className": "EGLLibraryNameContainer"
+      },
+      "rename": {
+        "Buffer": "BufferKind"
+      },
+      "typeMaps": [
+        {
+          "$include.glTypeMap": "build/gl_typemap.json"
+        },
+        {
+          "$include.commonTypeMap": "build/csharp_typemap.json"
+        },
+        {
+          "EGLBoolean": "bool",
+          "EGLint": "int",
+          "EGLDisplay": "nint",
+          "EGLConfig": "nint",
+          "EGLContext": "nint",
+          "EGLSurface": "nint",
+          "EGLClientBuffer": "nint",
+          "EGLAttrib": "nint",
+          "EGLAttribKHR": "nint",
+          "EGLDeviceEXT": "nint",
+          "EGLImage": "nint",
+          "EGLImageKHR": "nint",
+          "EGLLabelKHR": "nint",
+          "EGLObjectKHR": "nint",
+          "EGLOutputLayerEXT": "nint",
+          "EGLOutputPortEXT": "nint",
+          "EGLStreamKHR": "nint",
+          "EGLSync": "nint",
+          "EGLSyncKHR": "nint",
+          "EGLSyncNV": "nint",
+          "EGLNativeDisplayType": "nint",
+          "EGLNativePixmapType": "nint",
+          "EGLNativeWindowType": "nint",
+          "EGLTime": "ulong",
+          "EGLTimeKHR": "ulong",
+          "EGLTimeNV": "ulong",
+          "EGLuint64KHR": "ulong",
+          "EGLuint64NV": "ulong",
+          "EGLnsecsANDROID": "long",
+          "EGLNativeFileDescriptorKHR": "int",
+          "EGLsizeiANDROID": "int",
+          "EGLClientPixmapHI": "ClientPixmapHI",
+          "__eglMustCastToProperFunctionPointerType": "void*",
+          "EGLGetBlobFuncANDROID": "PfnGetBlobFuncANDROID",
+          "EGLSetBlobFuncANDROID": "PfnSetBlobFuncANDROID",
+          "EGLDEBUGPROCKHR": "PfnDebugProcKhr"
+        }
+      ]
+    }
+  ]
+}
