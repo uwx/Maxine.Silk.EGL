@@ -58,5 +58,9 @@ fi
 
 echo "Microsoft (R) .NET Core SDK version $("$DOTNET_EXE" --version)"
 
-"$DOTNET_EXE" build "$BUILD_PROJECT_FILE" /nodeReuse:false /p:UseSharedCompilation=false -nologo -clp:NoSummary --verbosity quiet
+# The property switch uses the dash form (-p:) rather than the slash form (/p:) that msbuild
+# also accepts. Under Git Bash / MSYS the slash form looks like a Unix path, so the runtime
+# rewrites it to a Windows path and msbuild receives a stray "p:UseSharedCompilation=false"
+# token and fails with MSB1008 (Only one project can be specified).
+"$DOTNET_EXE" build "$BUILD_PROJECT_FILE" /nodeReuse:false -p:UseSharedCompilation=false -nologo -clp:NoSummary --verbosity quiet
 "$DOTNET_EXE" run --project "$BUILD_PROJECT_FILE" --no-build -- "$@"

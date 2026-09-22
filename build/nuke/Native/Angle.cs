@@ -35,17 +35,33 @@ partial class Build
                 {
                     // Use the Visual Studio installed on the machine rather than Chromium's own toolchain.
                     Environment.SetEnvironmentVariable("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
+
+                    // ANGLE's dependency tree contains paths well past MAX_PATH -- dawn alone nests
+                    // directx-shader-compiler several levels down, and its clang test data goes
+                    // deeper still. Without this, `fetch` dies partway through with "Filename too
+                    // long" and leaves a half-populated source tree that fails much later with a
+                    // confusing GN error. The GIT_CONFIG_* variables are read by git itself and
+                    // inherited by every git process it spawns, so gclient's nested checkouts are
+                    // covered without touching the machine's global git configuration.
+                    Environment.SetEnvironmentVariable("GIT_CONFIG_COUNT", "1");
+                    Environment.SetEnvironmentVariable("GIT_CONFIG_KEY_0", "core.longpaths");
+                    Environment.SetEnvironmentVariable("GIT_CONFIG_VALUE_0", "true");
                 }
 
                 var angleSourceDir = tempDir / "angle_source";
                 EnsureCleanDirectory(angleSourceDir);
                 InheritedShell("fetch --no-history angle", angleSourceDir).AssertZeroExitCode();
 
+                // fetch is a thin wrapper around gclient, which syncs the dependency tree in the
+                // background. On Windows the tree cannot be pruned while those children are still
+                // running, so wait for them to settle before touching anything under third_party.
+                WaitForGitToSettle();
+
                 // save space
                 // DeleteDirectory takes too long (it deletes individual files)
-                Directory.Delete(angleSourceDir / "third_party" / "VK-GL-CTS", true); // this is only possible because we disable tests below
-                Directory.Delete(angleSourceDir / "third_party" / "dawn", true); // this is only possible because we disable wgpu below
-                (angleSourceDir / "third_party").GlobDirectories("*.git").ForEach(DeleteDirectory);
+                ClearTree(angleSourceDir / "third_party" / "VK-GL-CTS"); // this is only possible because we disable tests below
+                ClearTree(angleSourceDir / "third_party" / "dawn"); // this is only possible because we disable wgpu below
+                (angleSourceDir / "third_party").GlobDirectories("*.git").ForEach(ClearTree);
 
                 if (OperatingSystem.IsLinux())
                 {
@@ -158,4 +174,72 @@ partial class Build
                 PublishNativeBinaries("ANGLE");
             }
         );
+
+    /// <summary>
+    /// Deletes a directory, clearing the read-only flag first.
+    /// </summary>
+    /// <remarks>
+    /// Git marks the files it writes into <c>.git/objects</c> read-only, and Windows refuses to
+    /// unlink a read-only file, surfacing it as <see cref="UnauthorizedAccessException"/>. The
+    /// dependency trees pruned below are entire git checkouts, so a plain recursive delete
+    /// reliably fails partway through with "Access to the path 'pack-*.idx' is denied".
+    /// </remarks>
+    static void ClearTree(AbsolutePath path)
+    {
+        if (!Directory.Exists(path))
+        {
+            return;
+        }
+
+        foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+        {
+            var attributes = File.GetAttributes(file);
+            if ((attributes & FileAttributes.ReadOnly) != 0)
+            {
+                File.SetAttributes(file, attributes & ~FileAttributes.ReadOnly);
+            }
+        }
+
+        Directory.Delete(path, true);
+    }
+
+    /// <summary>
+    /// Waits for git processes spawned by <c>fetch</c> to exit.
+    /// </summary>
+    /// <remarks>
+    /// On Windows an open handle keeps a file locked, so pruning the tree while git is still
+    /// running under it fails or silently leaves entries behind. Everywhere else this is a no-op:
+    /// the children have already exited by the time the shell that started them returns.
+    /// </remarks>
+    static void WaitForGitToSettle()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        for (var attempt = 0; attempt < 60; attempt++)
+        {
+            var running = System.Diagnostics.Process.GetProcessesByName("git")
+                .Where(x =>
+                {
+                    try
+                    {
+                        return !x.HasExited;
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        return false;
+                    }
+                })
+                .Any();
+
+            if (!running)
+            {
+                return;
+            }
+
+            System.Threading.Thread.Sleep(1000);
+        }
+    }
 }

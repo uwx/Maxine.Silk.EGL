@@ -8,6 +8,12 @@
         <IncludeBuildOutput>false</IncludeBuildOutput>
         <IsPackable>true</IsPackable>
 
+        <!-- The root Directory.Build.props turns on a .snupkg for the binding packages, which have
+             assemblies to symbol-ise. This project has none, so the symbols package comes out empty
+             and pack fails with NU5017 ("no dependencies nor content") after the real .nupkg has
+             already been written, so the error reads as if the whole package were broken. -->
+        <IncludeSymbols>false</IncludeSymbols>
+
         <!-- The root Directory.Build.props sets Version to the Silk.NET 2.x version these bindings
              track; native packages are versioned by build date like the ones in the Silk.NET
              monorepo, since the binaries change independently of the bindings. This deliberately
