@@ -119,10 +119,14 @@ jobs:
                   git config --local user.email "github-actions[bot]@users.noreply.github.com"
                   git config --local user.name "github-actions[bot]"
 
-            # depot_tools' `fetch` is a Python script.
+            # depot_tools' `fetch` is a Python script. 3.10 is what upstream pins, but there is no
+            # arm64 build of it for Windows -- the first arm64 release is 3.11.0, and setup-python
+            # fails with "The version '3.10' with architecture 'arm64' was not found for Windows"
+            # there. Both versions work for depot_tools' purposes, so let each platform take the
+            # one it has.
             - uses: actions/setup-python@v5
               with:
-                  python-version: "3.10"
+                  python-version: ${{ startsWith(matrix.os, 'windows') && '3.11' || '3.10' }}
 
             - name: Extra prerequisites
               if: matrix.os == 'ubuntu-22.04'

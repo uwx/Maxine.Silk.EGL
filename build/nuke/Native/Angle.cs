@@ -119,6 +119,23 @@ partial class Build
                     InheritedShell("sudo ./build/install-build-deps.sh --no-prompt", angleSourceDir).AssertZeroExitCode();
                 }
 
+                if (OperatingSystem.IsLinux()
+                    && System.Runtime.InteropServices.RuntimeInformation.OSArchitecture
+                    == System.Runtime.InteropServices.Architecture.Arm64)
+                {
+                    // Chromium builds Linux against a pinned Debian bullseye sysroot rather than the
+                    // host's glibc, so that the binaries run on distributions older than the one
+                    // that built them. gn gen asserts that the sysroot is present and names this
+                    // exact command to fetch it:
+                    //   Missing sysroot (//build/linux/debian_bullseye_arm64-sysroot).
+                    //   To fix, run: build/linux/sysroot_scripts/install-sysroot.py --arch=arm64
+                    // The x64 runner does not need this because install-build-deps.sh installs the
+                    // amd64 sysroot there. Fetching it rather than setting use_sysroot = false is
+                    // deliberate: the sysroot is what keeps the shipped libraries loadable on older
+                    // glibc, and dropping it to save a download would trade that away.
+                    InheritedShell("build/linux/sysroot_scripts/install-sysroot.py --arch=arm64", angleSourceDir).AssertZeroExitCode();
+                }
+
                 var runtimes = RootDirectory / "native" / "Maxine.Silk.OpenGLES.ANGLE.Native" / "runtimes";
 
                 void GnGen(string outName, params string[] args)
