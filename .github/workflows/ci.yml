@@ -43,8 +43,12 @@ jobs:
 
             - name: Fail if regeneration changed anything
               run: |
-                  if ! git diff --quiet; then
+                  # --porcelain rather than `git diff`: the generator can also *add* a file, and an
+                  # untracked file is invisible to git diff. Either way the committed sources no
+                  # longer match what the generator produces.
+                  if [ -n "$(git status --porcelain)" ]; then
                       echo "::error::Running the generator produced changes. Commit the regenerated sources."
+                      git status --porcelain
                       git --no-pager diff --stat
                       exit 1
                   fi
