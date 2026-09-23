@@ -121,6 +121,11 @@ partial class Build
 
                 var runtimes = RootDirectory / "native" / "Maxine.Silk.OpenGLES.ANGLE.Native" / "runtimes";
 
+                if (OperatingSystem.IsWindows())
+                {
+                    RetargetWindowsSdk(angleSourceDir / "build" / "toolchain" / "win" / "setup_toolchain.py");
+                }
+
                 void GnGen(string outName, params string[] args)
                 {
                     var @out = angleSourceDir / "out" / outName;
@@ -251,6 +256,60 @@ partial class Build
         }
 
         Directory.Delete(path, true);
+    }
+
+    /// <summary>
+    /// Points the vendored Chromium toolchain script at the newest installed Windows SDK.
+    /// </summary>
+    /// <remarks>
+    /// ANGLE vendors Chromium's <c>build/</c> directory at the <c>chromium_revision</c> named in
+    /// its DEPS, and <c>build/toolchain/win/setup_toolchain.py</c> hardcodes the SDK to build
+    /// against: <c>SDK_VERSION = '10.0.28000.0'</c>. No GitHub runner has that version --
+    /// windows-2022, windows-2025 and both of the VS2026 preview images all stop at 10.0.26100.0
+    /// -- and the script hands it to vcvarsall.bat and then requires every INCLUDE path that comes
+    /// back to exist. So <c>gn gen</c> fails on a path that looks doubled,
+    /// "10\\include\10.0.28000.0\\um", which is really just this constant being unsatisfiable. It
+    /// builds on a machine that happens to have a preview SDK of that version, which is presumably
+    /// how the constant was written, and fails everywhere else -- so it only ever shows up in CI.
+    ///
+    /// The patch swaps the constant for a lookup of the newest SDK actually present. The pin is
+    /// there to stop Chromium picking up an untested SDK by accident, which is not a risk for a
+    /// build that has no other option, and a lookup keeps working whichever SDK an image ships.
+    /// </remarks>
+    static void RetargetWindowsSdk(AbsolutePath script)
+    {
+        const string pinned = "SDK_VERSION = '10.0.28000.0'";
+        const string lookup = @"def _NewestInstalledSdk(default):
+    # The version this script ships with is newer than any released Windows SDK, so build against
+    # the newest one the machine actually has instead. Chromium pins it to avoid picking up an
+    # untested SDK by accident; that is not a risk for a build that has no choice.
+    kits = os.path.join(
+        os.environ.get('ProgramFiles(x86)') or r'C:\Program Files (x86)',
+        'Windows Kits',
+        '10',
+        'Include',
+    )
+    try:
+        found = [d for d in os.listdir(kits) if re.match(r'^\d+(\.\d+)+$', d)]
+    except OSError:
+        return default
+    return max(found, key=lambda v: [int(p) for p in v.split('.')]) if found else default
+
+
+SDK_VERSION = _NewestInstalledSdk('10.0.28000.0')";
+
+        var source = File.ReadAllText(script);
+        if (!source.Contains(pinned))
+        {
+            throw new InvalidOperationException
+            (
+                $"{script} no longer pins the Windows SDK version '{pinned}'. ANGLE's "
+                + "chromium_revision has probably moved; check what it pins now, and whether this "
+                + "workaround is still needed at all, before dropping it."
+            );
+        }
+
+        File.WriteAllText(script, source.Replace(pinned, lookup));
     }
 
     /// <summary>

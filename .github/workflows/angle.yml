@@ -54,6 +54,24 @@ jobs:
                   # The build commits the binaries it produces, so it needs a token that can push.
                   token: ${{ github.token }}
 
+            # ANGLE's dependency tree plus its GN/ninja output does not fit in the ~14 GB the
+            # ubuntu-22.04 image leaves free. It runs out partway through `fetch`, on the first CIPD
+            # package, with "no space left on device" -- nowhere near enough of the tree checked out
+            # to make sense of the error. Reclaim the space first: this drops the preinstalled
+            # Android SDK, two browsers, the Haskell/CodeQL toolchains and the swap file, none of
+            # which this build uses (it compiles C++ with ANGLE's own clang and needs only .NET and
+            # Python, both installed explicitly below).
+            - name: Free disk space
+              if: matrix.os == 'ubuntu-22.04'
+              uses: jlumbroso/free-disk-space@v1.3.2
+              with:
+                  android: true
+                  dotnet: true
+                  haskell: true
+                  large-packages: true
+                  swap-storage: true
+                  tool-cache: true
+
             - name: Setup .NET
               uses: actions/setup-dotnet@v4
               with:
