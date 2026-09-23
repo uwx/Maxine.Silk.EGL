@@ -39,7 +39,7 @@ jobs:
                       name: Windows
                       nuke_invoke: ./build.cmd
                       runtimes: win-x64, win-x86
-                    - os: macos-latest-xlarge
+                    - os: macos-26
                       name: Darwin
                       nuke_invoke: ./build.sh
                       runtimes: osx
