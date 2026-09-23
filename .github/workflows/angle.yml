@@ -25,6 +25,9 @@ concurrency:
     group: angle-${{ github.ref }}
     cancel-in-progress: true
 
+permissions: 
+  contents: write
+
 jobs:
     Build:
         strategy:
@@ -49,7 +52,7 @@ jobs:
             - uses: actions/checkout@v4
               with:
                   # The build commits the binaries it produces, so it needs a token that can push.
-                  token: ${{ secrets.PUBLISH_TOKEN }}
+                  token: ${{ github.token }}
 
             - name: Setup .NET
               uses: actions/setup-dotnet@v4
