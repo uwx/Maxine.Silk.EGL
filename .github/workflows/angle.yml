@@ -57,7 +57,13 @@ jobs:
             - name: Setup .NET
               uses: actions/setup-dotnet@v4
               with:
-                  dotnet-version: 8.0.x
+                  # The NUKE build project targets net7.0, so the 7.0 runtime has to be installed for
+                  # `dotnet run` to launch it. 8.0.x alone is not enough: the runner resolves the
+                  # rollforward to net8.0 but the build project's runtimeconfig pins 7.0, and the
+                  # run fails with "You must install or update .NET to run this application".
+                  dotnet-version: |
+                      7.0.x
+                      8.0.x
 
             - name: Configure git
               run: |

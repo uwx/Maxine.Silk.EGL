@@ -43,13 +43,18 @@ jobs:
 
             - name: Fail if regeneration changed anything
               run: |
+                  # Ignores build/cache, the generator's parsed copy of the upstream registry.
+                  # The bytes of that archive are not stable across platforms, so it showed up as a
+                  # change on Linux while the generated sources were identical -- which is what this
+                  # gate is actually about. The cache is input, the sources are output; the sources
+                  # are still checked, including in the directories under build/.
+                  #
                   # --porcelain rather than `git diff`: the generator can also *add* a file, and an
-                  # untracked file is invisible to git diff. Either way the committed sources no
-                  # longer match what the generator produces.
-                  if [ -n "$(git status --porcelain)" ]; then
+                  # untracked file is invisible to git diff.
+                  if [ -n "$(git status --porcelain -- ':!build/cache')" ]; then
                       echo "::error::Running the generator produced changes. Commit the regenerated sources."
-                      git status --porcelain
-                      git --no-pager diff --stat
+                      git status --porcelain -- ':!build/cache'
+                      git --no-pager diff --stat -- . ':!build/cache'
                       exit 1
                   fi
 
