@@ -121,11 +121,6 @@ partial class Build
 
                 var runtimes = RootDirectory / "native" / "Maxine.Silk.OpenGLES.ANGLE.Native" / "runtimes";
 
-                if (OperatingSystem.IsWindows())
-                {
-                    RetargetWindowsSdk(angleSourceDir / "build" / "toolchain" / "win" / "setup_toolchain.py");
-                }
-
                 void GnGen(string outName, params string[] args)
                 {
                     var @out = angleSourceDir / "out" / outName;
@@ -150,11 +145,15 @@ partial class Build
                     // into libEGL/libGLESv2/libANGLE DLLs that depend on each other and on a pile of
                     // Chromium runtime DLLs that are not shipped, so nothing loads. Turning it off
                     // produces self-contained libraries.
-                    foreach (var (cpu, rid) in new[]
-                    {
-                        ("x64", "win-x64"),
-                        ("x86", "win-x86"),
-                    })
+                    //
+                    // x86 is only attempted on an x64 host: it is a cross-build, and the arm64
+                    // runners have no x86 toolchain at all.
+                    var targets = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture
+                        == System.Runtime.InteropServices.Architecture.Arm64
+                        ? new[] { ("arm64", "win-arm64") }
+                        : new[] { ("x64", "win-x64"), ("x86", "win-x86") };
+
+                    foreach (var (cpu, rid) in targets)
                     {
                         GnGen
                         (
@@ -176,20 +175,27 @@ partial class Build
                 }
                 else if (OperatingSystem.IsLinux())
                 {
+                    // Native build only -- the architecture is whatever the runner is, so an arm64
+                    // runner produces linux-arm64 without any cross-compilation.
+                    var (cpu, rid) = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture
+                        == System.Runtime.InteropServices.Architecture.Arm64
+                        ? ("arm64", "linux-arm64")
+                        : ("x64", "linux-x64");
+
                     GnGen
                     (
-                        "Release_x64",
+                        $"Release_{cpu}",
                         "is_debug = false",
                         "is_component_build = false",
-                        "target_cpu = \"x64\"",
+                        "target_cpu = \"" + cpu + "\"",
                         "angle_build_tests = false",
                         // dawn was deleted above, and wgpu defaults to on under clang with x11.
                         "angle_enable_wgpu = false"
                     );
                     CopyAll
                     (
-                        (angleSourceDir / "out" / "Release_x64").GlobFiles("libGLESv2.so", "libEGL.so", "libANGLE.so"),
-                        runtimes / "linux-x64" / "native"
+                        (angleSourceDir / "out" / $"Release_{cpu}").GlobFiles("libGLESv2.so", "libEGL.so", "libANGLE.so"),
+                        runtimes / rid / "native"
                     );
                 }
                 else if (OperatingSystem.IsMacOS())
@@ -256,60 +262,6 @@ partial class Build
         }
 
         Directory.Delete(path, true);
-    }
-
-    /// <summary>
-    /// Points the vendored Chromium toolchain script at the newest installed Windows SDK.
-    /// </summary>
-    /// <remarks>
-    /// ANGLE vendors Chromium's <c>build/</c> directory at the <c>chromium_revision</c> named in
-    /// its DEPS, and <c>build/toolchain/win/setup_toolchain.py</c> hardcodes the SDK to build
-    /// against: <c>SDK_VERSION = '10.0.28000.0'</c>. No GitHub runner has that version --
-    /// windows-2022, windows-2025 and both of the VS2026 preview images all stop at 10.0.26100.0
-    /// -- and the script hands it to vcvarsall.bat and then requires every INCLUDE path that comes
-    /// back to exist. So <c>gn gen</c> fails on a path that looks doubled,
-    /// "10\\include\10.0.28000.0\\um", which is really just this constant being unsatisfiable. It
-    /// builds on a machine that happens to have a preview SDK of that version, which is presumably
-    /// how the constant was written, and fails everywhere else -- so it only ever shows up in CI.
-    ///
-    /// The patch swaps the constant for a lookup of the newest SDK actually present. The pin is
-    /// there to stop Chromium picking up an untested SDK by accident, which is not a risk for a
-    /// build that has no other option, and a lookup keeps working whichever SDK an image ships.
-    /// </remarks>
-    static void RetargetWindowsSdk(AbsolutePath script)
-    {
-        const string pinned = "SDK_VERSION = '10.0.28000.0'";
-        const string lookup = @"def _NewestInstalledSdk(default):
-    # The version this script ships with is newer than any released Windows SDK, so build against
-    # the newest one the machine actually has instead. Chromium pins it to avoid picking up an
-    # untested SDK by accident; that is not a risk for a build that has no choice.
-    kits = os.path.join(
-        os.environ.get('ProgramFiles(x86)') or r'C:\Program Files (x86)',
-        'Windows Kits',
-        '10',
-        'Include',
-    )
-    try:
-        found = [d for d in os.listdir(kits) if re.match(r'^\d+(\.\d+)+$', d)]
-    except OSError:
-        return default
-    return max(found, key=lambda v: [int(p) for p in v.split('.')]) if found else default
-
-
-SDK_VERSION = _NewestInstalledSdk('10.0.28000.0')";
-
-        var source = File.ReadAllText(script);
-        if (!source.Contains(pinned))
-        {
-            throw new InvalidOperationException
-            (
-                $"{script} no longer pins the Windows SDK version '{pinned}'. ANGLE's "
-                + "chromium_revision has probably moved; check what it pins now, and whether this "
-                + "workaround is still needed at all, before dropping it."
-            );
-        }
-
-        File.WriteAllText(script, source.Replace(pinned, lookup));
     }
 
     /// <summary>

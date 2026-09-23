@@ -38,10 +38,22 @@ jobs:
                       name: Linux
                       nuke_invoke: ./build.sh
                       runtimes: linux-x64
+                    # arm64 runners, so the architecture is native rather than cross-compiled.
+                    # GitHub's arm64 runners are the -arm suffixed labels; they are free for public
+                    # repositories like this one, and ARM has no 32-bit leg here because the plain
+                    # `osx` binaries cover macOS and no other platform needs it.
+                    - os: ubuntu-24.04-arm
+                      name: Linux ARM64
+                      nuke_invoke: ./build.sh
+                      runtimes: linux-arm64
                     - os: windows-2022
                       name: Windows
                       nuke_invoke: ./build.cmd
                       runtimes: win-x64, win-x86
+                    - os: windows-11-arm
+                      name: Windows ARM64
+                      nuke_invoke: ./build.cmd
+                      runtimes: win-arm64
                     - os: macos-26
                       name: Darwin
                       nuke_invoke: ./build.sh
@@ -55,14 +67,14 @@ jobs:
                   token: ${{ github.token }}
 
             # ANGLE's dependency tree plus its GN/ninja output does not fit in the ~14 GB the
-            # ubuntu-22.04 image leaves free. It runs out partway through `fetch`, on the first CIPD
+            # ubuntu images leave free. It runs out partway through `fetch`, on the first CIPD
             # package, with "no space left on device" -- nowhere near enough of the tree checked out
             # to make sense of the error. Reclaim the space first: this drops the preinstalled
             # Android SDK, two browsers, the Haskell/CodeQL toolchains and the swap file, none of
             # which this build uses (it compiles C++ with ANGLE's own clang and needs only .NET and
             # Python, both installed explicitly below).
             - name: Free disk space
-              if: matrix.os == 'ubuntu-22.04'
+              if: startsWith(matrix.os, 'ubuntu')
               uses: jlumbroso/free-disk-space@v1.3.2
               with:
                   android: true
@@ -71,6 +83,25 @@ jobs:
                   large-packages: true
                   swap-storage: true
                   tool-cache: true
+
+            # ANGLE vendors Chromium's build/ directory, and build/toolchain/win/setup_toolchain.py
+            # pins the Windows SDK to build against: SDK_VERSION = '10.0.28000.0'. It passes that to
+            # vcvarsall.bat and then requires every INCLUDE path that comes back to exist, so with
+            # any other SDK installed `gn gen` dies with
+            #   Path "C:\Program Files (x86)\Windows Kits\10\\include\10.0.28000.0\\um" from
+            #   environment variable "include" does not exist.
+            # No runner image ships 28000 -- windows-2022, windows-2025 and both VS2026 preview
+            # images all stop at 10.0.26100.0 -- because it is an Insider preview SDK. Build against
+            # a different one is not an option: 26100's fileapi.h reaches FILE_INFO_BY_HANDLE_CLASS
+            # before it is declared, so compilation fails with "unknown type name". Install the
+            # version ANGLE actually asks for. Both desktop C++ toolsets are requested because the
+            # x64 runner builds x64 and x86.
+            - name: Install Windows SDK 28000
+              if: startsWith(matrix.os, 'windows')
+              uses: ChristopheLav/windows-sdk-install@v1
+              with:
+                  version-sdk: 28000
+                  features: "OptionId.DesktopCPPx64,OptionId.DesktopCPPx86,OptionId.DesktopCPParm64"
 
             - name: Setup .NET
               uses: actions/setup-dotnet@v4
