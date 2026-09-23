@@ -1,31 +1,67 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- LLM maintained.
+
+     Copies this package's ANGLE libraries next to the consuming application.
+
+     This is a port of Silk.NET's own Silk.NET.OpenGLES.ANGLE.Native.targets and keeps its shape:
+     evaluation-time properties, the host's OS read from RuntimeInformation, architecture taken from
+     the project's PlatformTarget/Prefer32Bit. That design assumes the machine doing the build is the
+     machine being built for, which holds for the consumers this file exists for - the native package
+     targets net4.6.1, and a .NET Framework project has no notion of cross-compiling to another OS.
+     A modern consumer gets the right libraries from NuGet's own runtimes/ handling instead.
+
+     Three deliberate departures from upstream, each because its data does not match this package:
+
+       * macOS folds onto osx. Upstream maps macOS to osx-x64, but the ANGLE package ships a single
+         universal build under runtimes/osx/, so upstream's own ANGLE targets name a directory that
+         does not exist and would fail the consumer's build with MSB3030. OpenAL Soft does not have
+         this problem because it really does ship separate osx-x64 and osx-arm64 builds.
+
+       * arm64 branches for Windows and Linux, which upstream does not have. This package ships
+         runtimes/linux-arm64/ and, once its CI job commits them, runtimes/win-arm64/.
+
+       * Exists() guards on the two items. Upstream goes without, which is safe only when every
+         folder it names is present. win-arm64 is built by a CI job that commits the binaries back,
+         so a checkout taken between those two points would otherwise break every Windows arm64
+         build that referenced this package instead of merely copying nothing. -->
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <_Maxine_Silk_OPENGLES_ANGLE_Native_IsWindows Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Windows)))' == 'true'">true</_Maxine_Silk_OPENGLES_ANGLE_Native_IsWindows>
     <_Maxine_Silk_OPENGLES_ANGLE_Native_IsMacOS Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::OSX)))' == 'true'">true</_Maxine_Silk_OPENGLES_ANGLE_Native_IsMacOS>
     <_Maxine_Silk_OPENGLES_ANGLE_Native_IsLinux Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">true</_Maxine_Silk_OPENGLES_ANGLE_Native_IsLinux>
 
-    <_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime Condition=" '$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == '' And '$(_Maxine_Silk_OPENGLES_ANGLE_Native_IsMacOS)' == 'true' And ('$(Prefer32Bit)' == 'false' Or '$(PlatformTarget)' == 'x64')">osx</_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime>
+    <_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime Condition=" '$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == '' And '$(_Maxine_Silk_OPENGLES_ANGLE_Native_IsMacOS)' == 'true'">osx</_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime>
+    <_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime Condition=" '$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == '' And '$(_Maxine_Silk_OPENGLES_ANGLE_Native_IsLinux)' == 'true' And '$(PlatformTarget)' == 'arm64'">linux-arm64</_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime>
     <_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime Condition=" '$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == '' And '$(_Maxine_Silk_OPENGLES_ANGLE_Native_IsLinux)' == 'true' And ('$(Prefer32Bit)' == 'false' Or '$(PlatformTarget)' == 'x64')">linux-x64</_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime>
     <_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime Condition=" '$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == '' And '$(_Maxine_Silk_OPENGLES_ANGLE_Native_IsWindows)' == 'true' And ('$(Prefer32Bit)' == 'true' Or '$(PlatformTarget)' == 'x86')">win-x86</_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime>
+    <_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime Condition=" '$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == '' And '$(_Maxine_Silk_OPENGLES_ANGLE_Native_IsWindows)' == 'true' And '$(PlatformTarget)' == 'arm64'">win-arm64</_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime>
     <_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime Condition=" '$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == '' And '$(_Maxine_Silk_OPENGLES_ANGLE_Native_IsWindows)' == 'true' And ('$(Prefer32Bit)' == 'false' Or '$(PlatformTarget)' == 'x64')">win-x64</_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime>
 
-    <_Maxine_Silk_OPENGLES_ANGLE_EGL_Native_NativeLibName Condition="'$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == 'win-x86'">libEGL.dll</_Maxine_Silk_OPENGLES_ANGLE_EGL_Native_NativeLibName>
-    <_Maxine_Silk_OPENGLES_ANGLE_EGL_Native_NativeLibName Condition="'$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == 'win-x64'">libEGL.dll</_Maxine_Silk_OPENGLES_ANGLE_EGL_Native_NativeLibName>
-    <_Maxine_Silk_OPENGLES_ANGLE_EGL_Native_NativeLibName Condition="'$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == 'osx'">libEGL.dylib</_Maxine_Silk_OPENGLES_ANGLE_EGL_Native_NativeLibName>
-    <_Maxine_Silk_OPENGLES_ANGLE_EGL_Native_NativeLibName Condition="'$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == 'linux-x64'">libEGL.so</_Maxine_Silk_OPENGLES_ANGLE_EGL_Native_NativeLibName>
-    <_Maxine_Silk_OPENGLES_ANGLE_GLES_Native_NativeLibName Condition="'$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == 'win-x86'">libGLESv2.dll</_Maxine_Silk_OPENGLES_ANGLE_GLES_Native_NativeLibName>
-    <_Maxine_Silk_OPENGLES_ANGLE_GLES_Native_NativeLibName Condition="'$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == 'win-x64'">libGLESv2.dll</_Maxine_Silk_OPENGLES_ANGLE_GLES_Native_NativeLibName>
-    <_Maxine_Silk_OPENGLES_ANGLE_GLES_Native_NativeLibName Condition="'$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == 'osx'">libGLESv2.dylib</_Maxine_Silk_OPENGLES_ANGLE_GLES_Native_NativeLibName>
-    <_Maxine_Silk_OPENGLES_ANGLE_GLES_Native_NativeLibName Condition="'$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == 'linux-x64'">libGLESv2.so</_Maxine_Silk_OPENGLES_ANGLE_GLES_Native_NativeLibName>
+    <_Maxine_Silk_OPENGLES_ANGLE_Native_EglLibName Condition="'$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == 'win-x86'">libEGL.dll</_Maxine_Silk_OPENGLES_ANGLE_Native_EglLibName>
+    <_Maxine_Silk_OPENGLES_ANGLE_Native_EglLibName Condition="'$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == 'win-x64'">libEGL.dll</_Maxine_Silk_OPENGLES_ANGLE_Native_EglLibName>
+    <_Maxine_Silk_OPENGLES_ANGLE_Native_EglLibName Condition="'$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == 'win-arm64'">libEGL.dll</_Maxine_Silk_OPENGLES_ANGLE_Native_EglLibName>
+    <_Maxine_Silk_OPENGLES_ANGLE_Native_EglLibName Condition="'$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == 'linux-x64'">libEGL.so</_Maxine_Silk_OPENGLES_ANGLE_Native_EglLibName>
+    <_Maxine_Silk_OPENGLES_ANGLE_Native_EglLibName Condition="'$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == 'linux-arm64'">libEGL.so</_Maxine_Silk_OPENGLES_ANGLE_Native_EglLibName>
+    <_Maxine_Silk_OPENGLES_ANGLE_Native_EglLibName Condition="'$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == 'osx'">libEGL.dylib</_Maxine_Silk_OPENGLES_ANGLE_Native_EglLibName>
+
+    <_Maxine_Silk_OPENGLES_ANGLE_Native_GlesLibName Condition="'$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == 'win-x86'">libGLESv2.dll</_Maxine_Silk_OPENGLES_ANGLE_Native_GlesLibName>
+    <_Maxine_Silk_OPENGLES_ANGLE_Native_GlesLibName Condition="'$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == 'win-x64'">libGLESv2.dll</_Maxine_Silk_OPENGLES_ANGLE_Native_GlesLibName>
+    <_Maxine_Silk_OPENGLES_ANGLE_Native_GlesLibName Condition="'$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == 'win-arm64'">libGLESv2.dll</_Maxine_Silk_OPENGLES_ANGLE_Native_GlesLibName>
+    <_Maxine_Silk_OPENGLES_ANGLE_Native_GlesLibName Condition="'$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == 'linux-x64'">libGLESv2.so</_Maxine_Silk_OPENGLES_ANGLE_Native_GlesLibName>
+    <_Maxine_Silk_OPENGLES_ANGLE_Native_GlesLibName Condition="'$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == 'linux-arm64'">libGLESv2.so</_Maxine_Silk_OPENGLES_ANGLE_Native_GlesLibName>
+    <_Maxine_Silk_OPENGLES_ANGLE_Native_GlesLibName Condition="'$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' == 'osx'">libGLESv2.dylib</_Maxine_Silk_OPENGLES_ANGLE_Native_GlesLibName>
   </PropertyGroup>
+
+  <!-- Copied to the output root rather than left under runtimes/, because that is where the loader
+       looks for a bare library name. A .NET Framework consumer gets nothing from NuGet's own RID
+       handling, which does not probe runtimes/ at all. -->
   <ItemGroup>
-    <Content Condition="'$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' != ''" Include="$(MSBuildThisFileDirectory)..\..\runtimes\$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)\native\$(_Maxine_Silk_OPENGLES_ANGLE_GLES_Native_NativeLibName)">
+    <Content Condition="'$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' != '' And Exists('$(MSBuildThisFileDirectory)..\..\runtimes\$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)\native\$(_Maxine_Silk_OPENGLES_ANGLE_Native_GlesLibName)')" Include="$(MSBuildThisFileDirectory)..\..\runtimes\$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)\native\$(_Maxine_Silk_OPENGLES_ANGLE_Native_GlesLibName)">
       <Link>%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <Visible>False</Visible>
     </Content>
-    <Content Condition="'$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' != ''" Include="$(MSBuildThisFileDirectory)..\..\runtimes\$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)\native\$(_Maxine_Silk_OPENGLES_ANGLE_EGL_Native_NativeLibName)">
+    <Content Condition="'$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)' != '' And Exists('$(MSBuildThisFileDirectory)..\..\runtimes\$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)\native\$(_Maxine_Silk_OPENGLES_ANGLE_Native_EglLibName)')" Include="$(MSBuildThisFileDirectory)..\..\runtimes\$(_Maxine_Silk_OPENGLES_ANGLE_Native_NativeRuntime)\native\$(_Maxine_Silk_OPENGLES_ANGLE_Native_EglLibName)">
       <Link>%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <Visible>False</Visible>

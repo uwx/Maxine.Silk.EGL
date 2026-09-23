@@ -34,9 +34,13 @@
         <!-- Native assets, resolved by RID at restore time. -->
         <Content Include="runtimes/**" PackagePath="runtimes/%(RecursiveDir)%(Filename)%(Extension)" />
 
-        <!-- The targets file maps the current OS/architecture onto a RID directory and copies the
-             matching libraries into the build output. Shipped under both build/ and
-             buildTransitive/ so it also applies to projects that reference this one indirectly. -->
+        <!-- The targets file maps the target RID onto a RID directory and copies the matching
+             libraries into the build output, for consumers that need it spelled out. Shipped under
+             both build/ and buildTransitive/ so it also applies to projects that reference this one
+             indirectly; the net461/ segment matches upstream Silk.NET and means the file is imported
+             for a .NET Framework consumer. A modern consumer does not need it - NuGet's own
+             runtimes/ handling copies the right RID's libraries for those, which is the same
+             arrangement every other Silk.NET native package relies on. -->
         <Content Include="build/**" PackagePath="build/%(RecursiveDir)%(Filename)%(Extension)" />
         <Content Include="build/**" PackagePath="buildTransitive/%(RecursiveDir)%(Filename)%(Extension)" />
 
