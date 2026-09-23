@@ -13,8 +13,8 @@
         <Authors>.NET Foundation and Contributors</Authors>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <RepositoryType>git</RepositoryType>
-        <RepositoryUrl>https://github.com/SilkCommunity/Silk.NET.EGL.git</RepositoryUrl>
-        <PackageProjectUrl>https://github.com/SilkCommunity/Silk.NET.EGL</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/uwx/Maxine.Silk.EGL.git</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/uwx/Maxine.Silk.EGL</PackageProjectUrl>
         <PackageTags>EGL;OpenGL;OpenGLES;GLES;ANGLE;Khronos;bindings;interop;graphics;Silk.NET;SilkTouch</PackageTags>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
     </PropertyGroup>

@@ -14,7 +14,7 @@ partial class Build
 {
     /// <summary>
     /// Builds ANGLE (libEGL + libGLESv2) for the current platform and stages the results under
-    /// <c>native/Silk.NET.OpenGLES.ANGLE.Native/runtimes/</c>.
+    /// <c>native/Maxine.Silk.OpenGLES.ANGLE.Native/runtimes/</c>.
     /// </summary>
     /// <remarks>
     /// Each platform builds only the architectures it can: Windows produces x64 and x86 in separate
@@ -69,7 +69,7 @@ partial class Build
                     InheritedShell("sudo ./build/install-build-deps.sh --no-prompt", angleSourceDir).AssertZeroExitCode();
                 }
 
-                var runtimes = RootDirectory / "native" / "Silk.NET.OpenGLES.ANGLE.Native" / "runtimes";
+                var runtimes = RootDirectory / "native" / "Maxine.Silk.OpenGLES.ANGLE.Native" / "runtimes";
 
                 void GnGen(string outName, params string[] args)
                 {

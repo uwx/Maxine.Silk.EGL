@@ -29,8 +29,8 @@
         "licenseFile": "build/LICENSE_HEADER.txt",
         "props": "msbuild.props"
       },
-      "namespace": "Silk.NET.EGL",
-      "extensionsNamespace": "Silk.NET.EGL.Extensions",
+      "namespace": "Maxine.EGL",
+      "extensionsNamespace": "Maxine.EGL.Extensions",
       "nameContainer": {
         "linux-x64": "libEGL.so.1",
         "win-x64": "libEGL.dll",

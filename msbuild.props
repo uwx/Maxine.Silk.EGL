@@ -1,4 +1,16 @@
 <Project>
+    <PropertyGroup>
+        <!-- The package ids keep a dotted prefix while the C# namespaces do not. They have to
+             differ: the generated code references Silk.NET.Core types by their full name
+             (Silk.NET.Core.Native.FlowDirection, ~2800 times) without qualifying them, so a
+             namespace containing a "Silk" segment shadows that and the build fails with CS0234.
+             The project, and so PackageId by default, is named after the namespace, so the id is
+             rewritten here: "Maxine.EGL" -> "Maxine.Silk.EGL", "Maxine.EGL.Extensions.KHR" ->
+             "Maxine.Silk.EGL.Extensions.KHR". This file is imported by every generated project and
+             is not overwritten by regeneration, which the generated .csproj files are. -->
+        <PackageId>$(MSBuildProjectName.Replace('Maxine.EGL', 'Maxine.Silk.EGL'))</PackageId>
+    </PropertyGroup>
+
     <ItemGroup>
         <PackageReference Include="Silk.NET.Core" Version="2.23.0" />
         <PackageReference Include="Silk.NET.SilkTouch" Version="2.23.0" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />

@@ -20,10 +20,10 @@ jobs:
                   dotnet-version: 8.0.x
 
             - name: Restore
-              run: dotnet restore Silk.NET.EGL.sln
+              run: dotnet restore Maxine.Silk.EGL.sln
 
             - name: Build
-              run: dotnet build Silk.NET.EGL.sln --no-restore -c Release
+              run: dotnet build Maxine.Silk.EGL.sln --no-restore -c Release
 
     # Regenerating must not change anything. If it does, the committed bindings are stale relative
     # to generator.json and the two have drifted apart.
@@ -66,11 +66,11 @@ jobs:
                   dotnet-version: 8.0.x
 
             - name: Pack bindings
-              run: dotnet pack Silk.NET.EGL.sln -c Release -o artifacts
+              run: dotnet pack Maxine.Silk.EGL.sln -c Release -o artifacts
 
             - name: Pack ANGLE native package
               run: |
-                  dotnet pack native/Silk.NET.OpenGLES.ANGLE.Native/Silk.NET.OpenGLES.ANGLE.Native.csproj \
+                  dotnet pack native/Maxine.Silk.OpenGLES.ANGLE.Native/Maxine.Silk.OpenGLES.ANGLE.Native.csproj \
                       -c Release -o artifacts
 
             - name: List packages

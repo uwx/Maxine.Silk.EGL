@@ -1,4 +1,4 @@
-# Silk.NET.EGL
+# Maxine.Silk.EGL
 
 [EGL](https://registry.khronos.org/EGL/) bindings for C#, plus prebuilt
 [ANGLE](https://chromium.googlesource.com/angle/angle/) binaries to run them on.
@@ -12,18 +12,23 @@ These packages are companions to [Silk.NET](https://github.com/dotnet/Silk.NET) 
 same frameworks, so they can be referenced alongside `Silk.NET.OpenGL`, `Silk.NET.OpenGLES` and
 friends.
 
+The packages sit under a `Maxine.Silk.` prefix but the C# namespaces do not: the generated code
+refers to `Silk.NET.Core` types by their full name without a `using`, so a namespace with a `Silk`
+segment in it would shadow that and fail to compile. `using Maxine.EGL;` is the namespace; install
+`Maxine.Silk.EGL`.
+
 ## Packages
 
 | Package | Contents |
 |---|---|
-| `Silk.NET.EGL` | Core EGL bindings (`EGL.GetApi()`, enums, overloads) |
-| `Silk.NET.EGL.Extensions.*` | One package per extension vendor: `EXT`, `NV`, `KHR`, `ANDROID`, `ANGLE`, `ARM`, `HI`, `IMG`, `MESA`, `NOK`, `QNX`, `TIZEN`, `WL` |
-| `Silk.NET.OpenGLES.ANGLE.Native` | Prebuilt ANGLE `libEGL` / `libGLESv2` for `win-x64`, `win-x86`, `linux-x64` and `osx` (universal, x86_64 + arm64) |
+| `Maxine.Silk.EGL` | Core EGL bindings (`EGL.GetApi()`, enums, overloads) |
+| `Maxine.Silk.EGL.Extensions.*` | One package per extension vendor: `EXT`, `NV`, `KHR`, `ANDROID`, `ANGLE`, `ARM`, `HI`, `IMG`, `MESA`, `NOK`, `QNX`, `TIZEN`, `WL` |
+| `Maxine.Silk.OpenGLES.ANGLE.Native` | Prebuilt ANGLE `libEGL` / `libGLESv2` for `win-x64`, `win-x86`, `linux-x64` and `osx` (universal, x86_64 + arm64) |
 
 ## Usage
 
 ```csharp
-using Silk.NET.EGL;
+using Maxine.EGL;
 
 using var egl = EGL.GetApi();
 
@@ -34,9 +39,9 @@ if (egl.TryGetExtension<KhrDebug>(out var debug))
 }
 ```
 
-`Silk.NET.EGL` resolves `libEGL.so.1` on Linux and Android, `libEGL.dll` on Windows, and the
+`Maxine.EGL` resolves `libEGL.so.1` on Linux and Android, `libEGL.dll` on Windows, and the
 `EGL.framework` path on macOS. To use the bundled ANGLE build instead of a system EGL, reference
-`Silk.NET.OpenGLES.ANGLE.Native` — its targets copy the right binaries next to your application, and
+`Maxine.Silk.OpenGLES.ANGLE.Native` — its targets copy the right binaries next to your application, and
 ANGLE's `libEGL` is what gets loaded.
 
 Note that ANGLE, like EGL itself, has no macOS system framework; the `osx` binaries are a
@@ -45,7 +50,7 @@ self-contained ANGLE build and are what you want on that platform.
 ## Repository layout
 
 ```
-src/Silk.NET.EGL/         Core bindings (generated + hand-written)
+src/Maxine.EGL/            Core bindings (generated + hand-written)
 src/Extensions/           One project per extension vendor
 native/                   ANGLE native package and its committed binaries
 build/                    Type maps, generator cache, licence header
@@ -68,7 +73,7 @@ At build time the generated sources are compiled by
 [Silk.NET.SilkTouch](https://www.nuget.org/packages/Silk.NET.SilkTouch), which implements the
 `partial` methods. Its options live in `.editorconfig` at the repository root.
 
-Files that are **not** generated — `src/Silk.NET.EGL/EGL.cs`, `PfnDebugProcKhr.cs`,
+Files that are **not** generated — `src/Maxine.EGL/EGL.cs`, `PfnDebugProcKhr.cs`,
 `PfnGetBlobFuncANDROID.cs`, `PfnSetBlobFuncANDROID.cs` and `ClientPixmapHI.cs` — are deliberately
 not named `*.gen.cs`, because the generator deletes stale files that match that pattern.
 
@@ -83,7 +88,7 @@ ANGLE is fetched and built from source by the `Angle` NUKE target, which needs n
 
 Each platform builds what it can: Windows produces x64 and x86, Linux produces x64, and macOS builds
 both architectures and merges them into a universal binary with `lipo`. Results are written to
-`native/Silk.NET.OpenGLES.ANGLE.Native/runtimes/<rid>/native/`, where the NuGet package picks them
+`native/Maxine.Silk.OpenGLES.ANGLE.Native/runtimes/<rid>/native/`, where the NuGet package picks them
 up.
 
 The `.github/workflows/angle.yml` job runs this on all three platforms and commits the binaries back
@@ -93,4 +98,4 @@ onto the branch. Locally the result is left in the working tree for inspection; 
 ## Licence
 
 The bindings are MIT, matching Silk.NET — see [LICENSE.md](LICENSE.md). The ANGLE binaries in
-`Silk.NET.OpenGLES.ANGLE.Native` are BSD-3-Clause, as ANGLE is.
+`Maxine.Silk.OpenGLES.ANGLE.Native` are BSD-3-Clause, as ANGLE is.

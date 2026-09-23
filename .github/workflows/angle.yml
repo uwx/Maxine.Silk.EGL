@@ -1,7 +1,7 @@
 name: ANGLE
 
 # Builds the ANGLE native binaries (libEGL + libGLESv2) for every supported platform and commits
-# them into native/Silk.NET.OpenGLES.ANGLE.Native/runtimes/<rid>/native, from where the NuGet
+# them into native/Maxine.Silk.OpenGLES.ANGLE.Native/runtimes/<rid>/native, from where the NuGet
 # package picks them up.
 #
 # The binaries are committed rather than uploaded as artefacts because "pack" reads them straight
@@ -87,7 +87,7 @@ jobs:
                   set -e
                   fail=0
                   for rid in $(echo "${{ matrix.runtimes }}" | tr ',' ' '); do
-                      dir="native/Silk.NET.OpenGLES.ANGLE.Native/runtimes/$rid/native"
+                      dir="native/Maxine.Silk.OpenGLES.ANGLE.Native/runtimes/$rid/native"
                       if [ ! -d "$dir" ]; then
                           echo "::error::expected output directory $dir does not exist"
                           fail=1
