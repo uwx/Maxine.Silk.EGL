@@ -28,8 +28,58 @@ partial class Build
             () =>
             {
                 var tempDir = (AbsolutePath) Directory.CreateTempSubdirectory("silkDotNetAngleBuild").FullName;
+                var depotTools = tempDir / "depot_tools";
                 InheritedShell($"git clone --depth 1 --single-branch https://chromium.googlesource.com/chromium/tools/depot_tools.git", tempDir).AssertZeroExitCode();
-                AddToPath(tempDir / "depot_tools");
+                AddToPath(depotTools);
+
+                // A freshly cloned depot_tools cannot run its own tools yet -- the interpreter is
+                // downloaded on first use -- so bootstrap it here, before anything tries to use it.
+                //
+                // On Linux and macOS this step is load-bearing twice over. The `fetch` *shell*
+                // wrapper execs `python-bin/python3`, which exits immediately unless
+                // `python3_bin_reldir.txt` exists, and that file is written by this bootstrap. Unlike
+                // `fetch.bat` it does not call the updater first, so without this `fetch` dies before
+                // it starts with "python3_bin_reldir.txt not found. need to initialize depot_tools by
+                // running gclient, update_depot_tools or ensure_bootstrap." `ensure_bootstrap` is the
+                // documented way to initialise an existing checkout, and unlike `update_depot_tools`
+                // it syncs the checkout as it stands instead of moving it out from under us.
+                if (!OperatingSystem.IsWindows())
+                {
+                    InheritedShell("bash ensure_bootstrap", depotTools).AssertZeroExitCode();
+                }
+
+                // On Windows `fetch.bat` calls `update_depot_tools.bat` itself, which does install
+                // Python and the CIPD tools -- but not gsutil, and gsutil is the one bootstrap that
+                // cannot be left to `fetch`.
+                //
+                // `fetch` syncs the dependency tree in parallel, and gsutil is fetched on demand the
+                // first time a sync needs it: into a directory shared by every worker, under a lock
+                // whose timeout is 30 seconds. The download and its vpython setup take longer than
+                // that, so the workers that lose the race to the lock give up with "Error locking
+                // .../gsutil_5.35 (err: Failed to lock handle (error code: 6).)" and take the whole
+                // sync down with them. That is how this used to fail on Windows, ten minutes in,
+                // well past the point where it looked like it was getting somewhere. (The code
+                // reported is 6 rather than a clue, because lockfile.py's win32 `_open_file` does
+                // not check whether its CreateFileW succeeded -- it hands the invalid handle on, and
+                // LockFileEx answers ERROR_INVALID_HANDLE.) Doing it here, with nothing else running,
+                // means it is downloaded exactly once and every later worker just finds it.
+                else
+                {
+                    // The updater also fast-forwards depot_tools to origin/main; run it before
+                    // DEPOT_TOOLS_UPDATE is cleared below, so the clone is a known commit rather
+                    // than whatever `fetch.bat` would have picked up partway through the build.
+                    InheritedShell("update_depot_tools.bat", depotTools).AssertZeroExitCode();
+
+                    // `python3.bat` and `gsutil.py` are the supported entry points, and going through
+                    // python3.bat is what makes the bootstrapped interpreter's bin directory
+                    // available -- gsutil needs python3 on PATH to unpack and run itself.
+                    InheritedShell("python3.bat gsutil.py -- version", depotTools).AssertZeroExitCode();
+                }
+
+                // Now that the checkout is bootstrapped, stop depot_tools from updating itself out
+                // from under the build: `fetch.bat` re-runs the updater, which fast-forwards
+                // depot_tools to origin/main before every fetch.
+                Environment.SetEnvironmentVariable("DEPOT_TOOLS_UPDATE", "0");
 
                 if (OperatingSystem.IsWindows())
                 {
