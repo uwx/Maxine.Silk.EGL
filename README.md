@@ -23,7 +23,7 @@ segment in it would shadow that and fail to compile. `using Maxine.EGL;` is the 
 |---|---|
 | `Maxine.Silk.EGL` | Core EGL bindings (`EGL.GetApi()`, enums, overloads) |
 | `Maxine.Silk.EGL.Extensions.*` | One package per extension vendor: `EXT`, `NV`, `KHR`, `ANDROID`, `ANGLE`, `ARM`, `HI`, `IMG`, `MESA`, `NOK`, `QNX`, `TIZEN`, `WL` |
-| `Maxine.Silk.OpenGLES.ANGLE.Native` | Prebuilt ANGLE `libEGL` / `libGLESv2` for `win-x64`, `win-x86`, `linux-x64` and `osx` (universal, x86_64 + arm64) |
+| `Maxine.Silk.OpenGLES.ANGLE.Native` | Prebuilt ANGLE `libEGL` / `libGLESv2` for `win-x64`, `win-x86`, `win-arm64`, `linux-x64`, `linux-arm64` and `osx` (universal, x86_64 + arm64) |
 
 ## Usage
 
@@ -86,10 +86,14 @@ ANGLE is fetched and built from source by the `Angle` NUKE target, which needs n
 ./build.cmd Angle       # Windows
 ```
 
-Each platform builds what it can: Windows produces x64 and x86, Linux produces x64, and macOS builds
-both architectures and merges them into a universal binary with `lipo`. Results are written to
-`native/Maxine.Silk.OpenGLES.ANGLE.Native/runtimes/<rid>/native/`, where the NuGet package picks them
-up.
+Each platform builds what it can: Windows produces x64 (and x86, on an x64 host), Linux produces x64
+and cross-compiles arm64, and macOS builds both architectures and merges them into a universal binary
+with `lipo`. Results are written to `native/Maxine.Silk.OpenGLES.ANGLE.Native/runtimes/<rid>/native/`,
+where the NuGet package picks them up.
+
+Set `SILKNET_EGL_TARGET_CPU=arm64` on an x64 Linux host to cross-compile for arm64, which is what CI
+does. Building on an arm64 Linux host does not work: Chromium publishes no arm64 clang for Linux, so
+the build downloads an x64 one and fails to execute it.
 
 The `.github/workflows/angle.yml` job runs this on all three platforms and commits the binaries back
 onto the branch. Locally the result is left in the working tree for inspection; set

@@ -17,16 +17,24 @@ partial class Build
     /// <c>native/Maxine.Silk.OpenGLES.ANGLE.Native/runtimes/</c>.
     /// </summary>
     /// <remarks>
-    /// Each platform builds only the architectures it can: Windows produces x64 and x86 in separate
-    /// GN output directories, Linux produces x64, and macOS builds both architectures and merges
-    /// them into a single universal binary with <c>lipo</c>. ANGLE is fetched fresh from
-    /// googlesource rather than read from a submodule, so no checkout of it is required.
+    /// Each platform builds only the architectures it can: Windows produces x64, x86 or arm64,
+    /// Linux produces x64 or a cross-compiled arm64, and macOS builds both architectures and merges
+    /// them into a single universal binary with <c>lipo</c>. With no architecture named, Windows
+    /// builds every one its host supports; naming one with <c>SILKNET_EGL_TARGET_CPU</c> builds just
+    /// that one, which is what CI does so each architecture can have a runner of its own. ANGLE is
+    /// fetched fresh from googlesource rather than read from a submodule, so no checkout of it is
+    /// required.
     /// </remarks>
     Target Angle => _ => _
         .Executes
         (
             () =>
             {
+                // What we are building *for*, which is not always what we are building *on*: the
+                // Linux arm64 job cross-compiles from an x64 runner (see the workflow), and no amount
+                // of looking at the host will reveal that.
+                var targetCpu = Environment.GetEnvironmentVariable("SILKNET_EGL_TARGET_CPU");
+
                 var tempDir = (AbsolutePath) Directory.CreateTempSubdirectory("silkDotNetAngleBuild").FullName;
                 var depotTools = tempDir / "depot_tools";
                 InheritedShell($"git clone --depth 1 --single-branch https://chromium.googlesource.com/chromium/tools/depot_tools.git", tempDir).AssertZeroExitCode();
@@ -119,9 +127,7 @@ partial class Build
                     InheritedShell("sudo ./build/install-build-deps.sh --no-prompt", angleSourceDir).AssertZeroExitCode();
                 }
 
-                if (OperatingSystem.IsLinux()
-                    && System.Runtime.InteropServices.RuntimeInformation.OSArchitecture
-                    == System.Runtime.InteropServices.Architecture.Arm64)
+                if (OperatingSystem.IsLinux() && targetCpu == "arm64")
                 {
                     // Chromium builds Linux against a pinned Debian bullseye sysroot rather than the
                     // host's glibc, so that the binaries run on distributions older than the one
@@ -129,10 +135,15 @@ partial class Build
                     // exact command to fetch it:
                     //   Missing sysroot (//build/linux/debian_bullseye_arm64-sysroot).
                     //   To fix, run: build/linux/sysroot_scripts/install-sysroot.py --arch=arm64
-                    // The x64 runner does not need this because install-build-deps.sh installs the
-                    // amd64 sysroot there. Fetching it rather than setting use_sysroot = false is
-                    // deliberate: the sysroot is what keeps the shipped libraries loadable on older
-                    // glibc, and dropping it to save a download would trade that away.
+                    // This has to be done by hand rather than by `gclient sync`, because ANGLE's
+                    // DEPS fetches only the x86 and x64 sysroots -- it is why the assertion is
+                    // reached rather than the sysroot simply being there. Chromium cross-compiles
+                    // arm64 on x64 for itself, so the sysroot exists and installs on any host; ANGLE
+                    // just has no Linux arm64 builder of its own to need it. The x64 job does not
+                    // need this, because install-build-deps.sh installs the amd64 sysroot there.
+                    // Fetching it rather than setting use_sysroot = false is deliberate: the sysroot
+                    // is what keeps the shipped libraries loadable on older glibc, and dropping it to
+                    // save a download would trade that away.
                     InheritedShell("build/linux/sysroot_scripts/install-sysroot.py --arch=arm64", angleSourceDir).AssertZeroExitCode();
                 }
 
@@ -163,12 +174,27 @@ partial class Build
                     // Chromium runtime DLLs that are not shipped, so nothing loads. Turning it off
                     // produces self-contained libraries.
                     //
-                    // x86 is only attempted on an x64 host: it is a cross-build, and the arm64
-                    // runners have no x86 toolchain at all.
-                    var targets = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture
-                        == System.Runtime.InteropServices.Architecture.Arm64
-                        ? new[] { ("arm64", "win-arm64") }
-                        : new[] { ("x64", "win-x64"), ("x86", "win-x86") };
+                    // One architecture per invocation when CI names one, because CI gives each
+                    // architecture its own runner. gn takes only one target_cpu at a time, so
+                    // building both in a single job means running gn gen and ninja twice in
+                    // sequence on the same cores; on separate runners they run at the same time
+                    // instead. That is worth more than the second `fetch` it costs, because the
+                    // dependency sync is the part that does not parallelise -- only the compile
+                    // does.
+                    //
+                    // With no target named, build everything the host can, which is what a local run
+                    // wants. x86 is only ever attempted on an x64 host: it is a cross-build, and the
+                    // arm64 runners have no x86 toolchain at all.
+                    var targets = targetCpu switch
+                    {
+                        "x64" => new[] { ("x64", "win-x64") },
+                        "x86" => new[] { ("x86", "win-x86") },
+                        "arm64" => new[] { ("arm64", "win-arm64") },
+                        _ => System.Runtime.InteropServices.RuntimeInformation.OSArchitecture
+                            == System.Runtime.InteropServices.Architecture.Arm64
+                            ? new[] { ("arm64", "win-arm64") }
+                            : new[] { ("x64", "win-x64"), ("x86", "win-x86") }
+                    };
 
                     foreach (var (cpu, rid) in targets)
                     {
@@ -192,10 +218,11 @@ partial class Build
                 }
                 else if (OperatingSystem.IsLinux())
                 {
-                    // Native build only -- the architecture is whatever the runner is, so an arm64
-                    // runner produces linux-arm64 without any cross-compilation.
-                    var (cpu, rid) = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture
-                        == System.Runtime.InteropServices.Architecture.Arm64
+                    // Native unless SILKNET_EGL_TARGET_CPU says otherwise, which is how the arm64
+                    // job cross-compiles from the x64 runner. There is no arm64 runner that can
+                    // build this at all, so a native arm64 -- what this used to assume -- cannot
+                    // happen.
+                    var (cpu, rid) = targetCpu == "arm64"
                         ? ("arm64", "linux-arm64")
                         : ("x64", "linux-x64");
 
@@ -205,8 +232,14 @@ partial class Build
                         "is_debug = false",
                         "is_component_build = false",
                         "target_cpu = \"" + cpu + "\"",
+                        // Pinned rather than left to default to host_os, so that it is clear the
+                        // cross build is still targeting Linux.
+                        "target_os = \"linux\"",
                         "angle_build_tests = false",
                         // dawn was deleted above, and wgpu defaults to on under clang with x11.
+                        // Worth keeping off for arm64 in particular: this is a configuration ANGLE
+                        // does not build for itself, so the fewer of its dependencies exercised the
+                        // better.
                         "angle_enable_wgpu = false"
                     );
                     CopyAll

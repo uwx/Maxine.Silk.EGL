@@ -61,7 +61,46 @@ partial class Build
 
         var message = $"New {name} binaries for {System.Runtime.InteropServices.RuntimeInformation.OSDescription}";
         GitTasks.Git($"commit -m \"{message}\"", RootDirectory);
-        GitTasks.Git($"push origin \"{branch}\"", RootDirectory);
+
+        // Every leg of the build matrix reaches this point at roughly the same moment -- they start
+        // together and spend about the same time compiling -- and each pushes its own commit onto
+        // the same branch. Whoever pushes second is rejected as non-fast-forward, which fails a job
+        // whose actual build succeeded. So the push is the one step here that has to expect the
+        // branch to have moved underneath it: rebase onto whatever landed and try again.
+        //
+        // The retries have to stay patient enough to cover the spread between the first leg to
+        // finish and the last, which is minutes rather than seconds -- they build different amounts
+        // of code, and a leg that lost a race once usually has another leg still to land behind it.
+        // Each round is therefore: wait, fetch, rebase, push again.
+        const int attempts = 12;
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                GitTasks.Git($"push origin \"{branch}\"", RootDirectory);
+                break;
+            }
+            catch (ProcessException) when (attempt < attempts)
+            {
+                // Capped rather than proportional, so the wait can never grow into the tens of
+                // minutes: what is being waited out is other jobs finishing, not rate limiting.
+                var backoff = Math.Min(5 * attempt, 30);
+                Log.Warning
+                (
+                    "Push to {Branch} was rejected (attempt {Attempt} of {Attempts}); rebasing onto " +
+                    "origin/{Branch} in {Backoff}s and retrying.",
+                    branch, attempt, attempts, branch, backoff
+                );
+
+                // The legs build different RIDs, so their commits touch disjoint files and the
+                // rebase applies without conflict. The pause is to let the leg that won the race
+                // finish landing before fetching, rather than racing it a second time.
+                System.Threading.Thread.Sleep(TimeSpan.FromSeconds(backoff));
+                GitTasks.Git($"fetch origin \"{branch}\"", RootDirectory);
+                GitTasks.Git($"rebase \"origin/{branch}\"", RootDirectory);
+            }
+        }
+
         Log.Information("Published {Name} binaries on branch {Branch}.", name, branch);
     }
 }

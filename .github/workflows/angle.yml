@@ -38,22 +38,47 @@ jobs:
                       name: Linux
                       nuke_invoke: ./build.sh
                       runtimes: linux-x64
-                    # arm64 runners, so the architecture is native rather than cross-compiled.
-                    # GitHub's arm64 runners are the -arm suffixed labels; they are free for public
-                    # repositories like this one, and ARM has no 32-bit leg here because the plain
-                    # `osx` binaries cover macOS and no other platform needs it.
-                    - os: ubuntu-24.04-arm
+                      target_cpu: x64
+                    # Linux arm64 is cross-compiled from the x64 runner rather than built on an
+                    # arm64 one, which is the opposite of what the -arm runners are for and of what
+                    # Windows below does. Building it natively does not work: Chromium publishes a
+                    # clang for x64 Linux, Mac, Mac arm64 and Windows and nothing else
+                    # (tools/clang/scripts/update.py: _HOST_OS_URL_MAP has no linux-arm64 entry), so
+                    # an arm64 host downloads an x64 clang and dies the moment it runs it, with
+                    #   fork/exec .../llvm-build/Release+Asserts/bin/clang++: exec format error
+                    # Chromium's own answer is to cross-compile -- docs/linux/chromium_arm.md calls
+                    # it "the recommended method of building for ARM", and its bots "run x86-64 linux
+                    # and cross-compile the ARM targets" -- and the x64 runner has the working clang
+                    # for it. Everything comes from current_cpu, with no host check anywhere in
+                    # build/config: target_cpu selects the clang_arm64 toolchain, and
+                    # compiler_cpu_abi.gn adds --target=aarch64-linux-gnu to the x64 clang.
+                    - os: ubuntu-22.04
                       name: Linux ARM64
                       nuke_invoke: ./build.sh
                       runtimes: linux-arm64
+                      target_cpu: arm64
+                    # One job per architecture, not one job building both. gn takes a single
+                    # target_cpu at a time, so x64 and x86 in one job is gn gen and ninja run twice
+                    # over, back to back, on the same four cores; split across runners they run at
+                    # the same time on eight. The architecture the job builds is named here rather
+                    # than inferred from the runner, because the runner no longer implies it -- the
+                    # arm64 sysroots ANGLE ships are x86 and x64 only, so x86 has to be
+                    # cross-compiled from an x64 host and never from an arm64 one.
                     - os: windows-2022
-                      name: Windows
+                      name: Windows x64
                       nuke_invoke: ./build.cmd
-                      runtimes: win-x64, win-x86
+                      runtimes: win-x64
+                      target_cpu: x64
+                    - os: windows-2022
+                      name: Windows x86
+                      nuke_invoke: ./build.cmd
+                      runtimes: win-x86
+                      target_cpu: x86
                     - os: windows-11-arm
                       name: Windows ARM64
                       nuke_invoke: ./build.cmd
                       runtimes: win-arm64
+                      target_cpu: arm64
                     - os: macos-26
                       name: Darwin
                       nuke_invoke: ./build.sh
@@ -128,8 +153,10 @@ jobs:
               with:
                   python-version: ${{ startsWith(matrix.os, 'windows') && '3.11' || '3.10' }}
 
+            # Both Linux legs, which now share the x64 image: the arm64 one cross-compiles, and
+            # needs the same headers for the GL and Vulkan backends it links against.
             - name: Extra prerequisites
-              if: matrix.os == 'ubuntu-22.04'
+              if: startsWith(matrix.os, 'ubuntu')
               run: |
                   # The build runs ANGLE's own install-build-deps.sh, which installs the bulk of
                   # what's needed. These are the X11/GL development headers the GL and Vulkan
@@ -142,6 +169,30 @@ jobs:
               run: ${{ matrix.nuke_invoke }} Angle
               env:
                   SILKNET_EGL_PUBLISH: "1"
+                  # The architecture to build, so each job builds exactly one. Without it the build
+                  # falls back to whatever the host supports.
+                  SILKNET_EGL_TARGET_CPU: ${{ matrix.target_cpu }}
+
+            # The build pushes the binaries it produces, but that push can be rejected -- and this
+            # is not hypothetical: the Windows x64 and arm64 legs each built for 45 and 137 minutes,
+            # copied their output, and lost it when the commit was refused, having produced
+            # perfectly good libraries. Upload them first, so that a failed publish costs the
+            # convenience of having them on the branch rather than the build itself. The upload
+            # runs as part of this step, so a failure here fails the job.
+            - name: Upload binaries
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: angle-${{ matrix.runtimes }}
+                  # The build crashes out on a rejected push, so on a bad run the build directory is
+                  # not there at all -- the step above is where the compiler's output lives.
+                  path: |
+                      native/Maxine.Silk.OpenGLES.ANGLE.Native/runtimes/${{ matrix.runtimes }}/native/*
+                      ${{ runner.temp }}/silkDotNetAngleBuild*/angle_source/out/Release_*/*.dll
+                      ${{ runner.temp }}/silkDotNetAngleBuild*/angle_source/out/Release_*/*.so
+                      ${{ runner.temp }}/silkDotNetAngleBuild*/angle_source/out/Release_*/*.dylib
+                  if-no-files-found: warn
+                  overwrite: true
 
             - name: Verify binaries
               shell: bash
