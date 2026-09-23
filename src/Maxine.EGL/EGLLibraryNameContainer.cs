@@ -17,7 +17,13 @@ namespace Maxine.EGL
         public override string[] MacOS => new[] { "/System/Library/Frameworks/EGL.framework/EGL" };
 
         /// <inheritdoc />
-        public override string[] Android => new[] { "libEGL.so.1" };
+        /// <remarks>
+        /// Android ships EGL unversioned -- <c>libEGL.so.1</c> is the Linux soname, and it does not
+        /// exist on Android, so listing it here meant <c>EGL.GetApi()</c> could not load anything
+        /// there. (There is no need to bundle an EGL either: Android's own libEGL.so is AOSP's
+        /// dispatcher onto the vendor's GLES driver, which every device with GLES has.)
+        /// </remarks>
+        public override string[] Android => new[] { "libEGL.so" };
 
         /// <inheritdoc />
         public override string[] IOS => new[] { "/System/Library/Frameworks/EGL.framework/EGL" };

@@ -39,7 +39,7 @@ if (egl.TryGetExtension<KhrDebug>(out var debug))
 }
 ```
 
-`Maxine.EGL` resolves `libEGL.so.1` on Linux and Android, `libEGL.dll` on Windows, and the
+`Maxine.EGL` resolves `libEGL.so.1` on Linux, `libEGL.so` on Android, `libEGL.dll` on Windows, and the
 `EGL.framework` path on macOS. To use the bundled ANGLE build instead of a system EGL, reference
 `Maxine.Silk.OpenGLES.ANGLE.Native` — its targets copy the right binaries next to your application, and
 ANGLE's `libEGL` is what gets loaded.
