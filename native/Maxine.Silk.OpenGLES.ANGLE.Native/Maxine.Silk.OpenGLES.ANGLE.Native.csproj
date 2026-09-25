@@ -70,6 +70,22 @@
             <_AngleNativeExt Condition="$(_AngleNativeRid.StartsWith('win'))">.dll</_AngleNativeExt>
             <_AngleNativeExt Condition="$(_AngleNativeRid.StartsWith('linux'))">.so</_AngleNativeExt>
             <_AngleNativeExt Condition="$(_AngleNativeRid.StartsWith('osx'))">.dylib</_AngleNativeExt>
+
+            <!-- The Vulkan loader has a name and an extension of its own, so neither of the two
+                 properties above fits it and it gets both spelled out.
+
+                 The name is Windows-specific, vulkan-1.dll against everyone else's libvulkan, and the
+                 extension is not the platform's either: Linux emits it as libvulkan.so.1, because
+                 the libvulkan target sets output_extension = "so.1"
+                 (third_party/vulkan-loader/src/BUILD.gn). A search for libvulkan.so on Linux
+                 therefore finds nothing and reads as "there is no loader", which is the same
+                 false conclusion the Windows side of this once produced.
+
+                 Empty on macOS on purpose, and that is not an omission: angle_shared_libvulkan is
+                 !is_mac, so a macOS build links the loader statically and there is no file to copy.
+                 The Exists() guards below then find nothing, which is the correct outcome there. -->
+            <_AngleVulkanName Condition="$(_AngleNativeRid.StartsWith('win'))">vulkan-1.dll</_AngleVulkanName>
+            <_AngleVulkanName Condition="$(_AngleNativeRid.StartsWith('linux'))">libvulkan.so.1</_AngleVulkanName>
         </PropertyGroup>
 
         <ItemGroup>
@@ -85,6 +101,27 @@
             </Content>
             <Content Include="runtimes\$(_AngleNativeRid)\native\libGLESv2$(_AngleNativeExt)" Condition="'$(_AngleNativeRid)' != '' And Exists('runtimes\$(_AngleNativeRid)\native\libGLESv2$(_AngleNativeExt)')">
                 <Link>libGLESv2$(_AngleNativeExt)</Link>
+                <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+                <Visible>false</Visible>
+            </Content>
+
+            <!-- The Vulkan loader, which has to sit next to libGLESv2 rather than merely somewhere on
+                 the loader path. ANGLE does not link it: OpenLibVulkan resolves it at run time
+                 (src/common/vulkan/libvulkan_loader.cpp) and angle_use_custom_libvulkan, which is true
+                 on Windows, selects SearchType::ModuleDir over SearchType::SystemDir. So its directory
+                 is the whole of the search, and the system loader that already exists in System32 does
+                 not count.
+
+                 Missing it is silent and misdiagnosed. ANGLE reports the failed load as
+                 VK_ERROR_INITIALIZATION_FAILED, which reaches the caller as
+                   Internal Vulkan error (-3): Initialization of an object could not be completed for
+                   implementation-specific reasons, in vk_renderer.cpp, rx::vk::Renderer::initialize:2491
+                 (that line is the ANGLE_VK_CHECK on OpenLibVulkan's result), so it blames the driver
+                 for an absent file, and everything about the Vulkan backend reads as broken when only
+                 this copy is. The macOS argument to the name property above explains why the guard is
+                 expected to match nothing there. -->
+            <Content Include="runtimes\$(_AngleNativeRid)\native\$(_AngleVulkanName)" Condition="'$(_AngleVulkanName)' != '' And Exists('runtimes\$(_AngleNativeRid)\native\$(_AngleVulkanName)')">
+                <Link>$(_AngleVulkanName)</Link>
                 <CopyToOutputDirectory>Always</CopyToOutputDirectory>
                 <Visible>false</Visible>
             </Content>

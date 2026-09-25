@@ -210,8 +210,27 @@ partial class Build
                         );
                         CopyAll
                         (
-                            // libANGLE might not exist, this is fine
-                            (angleSourceDir / "out" / $"Release_{cpu}").GlobFiles("libGLESv2.dll", "libEGL.dll", "libANGLE.dll"),
+                            // libANGLE might not exist, this is fine.
+                            //
+                            // vulkan-1.dll is not optional, and its absence is silent. ANGLE does not
+                            // link the Vulkan loader: OpenLibVulkan (src/common/vulkan/libvulkan_loader.cpp)
+                            // resolves it at run time, and on Windows angle_use_custom_libvulkan is true
+                            // (src/common/vulkan/BUILD.gn), which selects SearchType::ModuleDir rather than
+                            // SearchType::SystemDir. So it looks for vulkan-1.dll next to libGLESv2.dll and
+                            // nowhere else, and the system loader in System32 does not satisfy it.
+                            //
+                            // That name is what this target produces: the GN arg angle_shared_libvulkan is
+                            // !is_mac, so libvulkan is built and emitted as vulkan-1.dll (is_win branch of
+                            // the libvulkan target's output_name, third_party/vulkan-loader/src/BUILD.gn).
+                            // Leaving it behind cost a long hunt: ANGLE reports the missing load as
+                            // VK_ERROR_INITIALIZATION_FAILED, which surfaces as
+                            //   Internal Vulkan error (-3): Initialization of an object could not be completed
+                            //     ... in vk_renderer.cpp, rx::vk::Renderer::initialize:2491
+                            // and that is the ANGLE_VK_CHECK on the OpenLibVulkan result -- so it names a
+                            // driver fault for what is really a file that was not copied. Nothing else about
+                            // the Vulkan backend is broken: adding vulkan-1.dll beside the shipped ANGLE
+                            // turns `--angle-backend=vulkan` from that error into a working Vulkan 1.4 device.
+                            (angleSourceDir / "out" / $"Release_{cpu}").GlobFiles("libGLESv2.dll", "libEGL.dll", "libANGLE.dll", "vulkan-1.dll"),
                             runtimes / rid / "native"
                         );
                     }
@@ -244,7 +263,12 @@ partial class Build
                     );
                     CopyAll
                     (
-                        (angleSourceDir / "out" / $"Release_{cpu}").GlobFiles("libGLESv2.so", "libEGL.so", "libANGLE.so"),
+                        // The Vulkan loader is as load-bearing here as the Windows one above, and it is
+                        // named differently: the libvulkan target sets output_extension = "so.1" on Linux
+                        // (third_party/vulkan-loader/src/BUILD.gn), so the file is libvulkan.so.1 and not
+                        // libvulkan.so. That extension is why a search for libvulkan.so finds nothing and
+                        // looks like the loader was never built.
+                        (angleSourceDir / "out" / $"Release_{cpu}").GlobFiles("libGLESv2.so", "libEGL.so", "libANGLE.so", "libvulkan.so.1"),
                         runtimes / rid / "native"
                     );
                 }
