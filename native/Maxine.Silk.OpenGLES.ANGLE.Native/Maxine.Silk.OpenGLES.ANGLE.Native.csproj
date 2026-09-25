@@ -1,52 +1,93 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
     <PropertyGroup>
         <TargetFrameworks>netstandard2.0;net4.6.1</TargetFrameworks>
-
-        <!-- No assembly is produced; this package is nothing but native binaries plus a targets
-             file that copies the right ones next to the consuming application. -->
-        <IncludeBuildOutput>false</IncludeBuildOutput>
-        <IsPackable>true</IsPackable>
-
-        <!-- The root Directory.Build.props turns on a .snupkg for the binding packages, which have
-             assemblies to symbol-ise. This project has none, so the symbols package comes out empty
-             and pack fails with NU5017 ("no dependencies nor content") after the real .nupkg has
-             already been written, so the error reads as if the whole package were broken. -->
-        <IncludeSymbols>false</IncludeSymbols>
-
-        <!-- The root Directory.Build.props sets Version to the Silk.NET 2.x version these bindings
-             track; native packages are versioned by build date like the ones in the Silk.NET
-             monorepo, since the binaries change independently of the bindings. This deliberately
-             overrides the root, and is set explicitly rather than derived from a submodule's
-             commit date because there is no ANGLE checkout here — the binaries are fetched from
-             ANGLE's source at build time. -->
-        <Version>2026.9.23</Version>
         <Authors>.NET Foundation and Contributors</Authors>
         <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
         <PackageLicenseExpression>BSD-3-Clause</PackageLicenseExpression>
+        <PackageProjectUrl>https://github.com/dotnet/Silk.NET</PackageProjectUrl>
         <Description>Multi-platform native library for ANGLE.</Description>
         <RepositoryType>git</RepositoryType>
         <RepositoryUrl>https://chromium.googlesource.com/angle/angle</RepositoryUrl>
-        <PackageProjectUrl>https://github.com/uwx/Maxine.Silk.EGL</PackageProjectUrl>
     </PropertyGroup>
 
+    <!-- The default item globs would claim these as @(None). They are handed to the consumer through
+         @(Content) instead, below, and an item in both would be copied twice. -->
     <ItemGroup>
-        <!-- Native assets, resolved by RID at restore time. -->
-        <Content Include="runtimes/**" PackagePath="runtimes/%(RecursiveDir)%(Filename)%(Extension)" />
-
-        <!-- The targets file maps the target RID onto a RID directory and copies the matching
-             libraries into the build output, for consumers that need it spelled out. Shipped under
-             both build/ and buildTransitive/ so it also applies to projects that reference this one
-             indirectly; the net461/ segment matches upstream Silk.NET and means the file is imported
-             for a .NET Framework consumer. A modern consumer does not need it - NuGet's own
-             runtimes/ handling copies the right RID's libraries for those, which is the same
-             arrangement every other Silk.NET native package relies on. -->
-        <Content Include="build/**" PackagePath="build/%(RecursiveDir)%(Filename)%(Extension)" />
-        <Content Include="build/**" PackagePath="buildTransitive/%(RecursiveDir)%(Filename)%(Extension)" />
-
-        <!-- Zeros-length placeholders declaring the supported TFMs. -->
-        <Content Include="$(MSBuildThisFileDirectory)..\_._" PackagePath="lib/net461" />
-        <Content Include="$(MSBuildThisFileDirectory)..\_._" PackagePath="lib/netstandard2.0" />
+        <None Remove="runtimes\**\*" />
     </ItemGroup>
 
+    <!--
+        The ANGLE libraries, handed to whatever consumes this project.
+
+        This project produces no assembly - it is the binaries plus a copy step. A ProjectReference
+        to it therefore carries nothing by default, because a project reference passes along an
+        assembly and that assembly's copy-to-output items; with no assembly and the libraries laid
+        out under runtimes/, NuGet's convention rather than MSBuild's, the consumer got no libEGL
+        and no libGLESv2 at all, and SDL_GL_CreateContext failed with "Could not initialize OpenGL /
+        GLES library". The Content items below are what makes the reference functional rather than
+        merely valid: they carry the CopyToOutputDirectory that schedules the copy and the Link that
+        puts both files in the consumer's output root.
+
+        Flat in the root rather than under runtimes/<rid>/native/, because that is where a loader
+        looks for a bare library name. NuGet's own RID handling, which does use that layout, only
+        applies to a RID-specific build of the consumer, and this consumer is RID-less; EGL.GetApi
+        and SDL both ask for "libGLESv2" by name.
+
+        It has to run inside a target, because neither of the two things it needs exists earlier.
+        @(Content) is read by AssignTargetPaths as it builds @(ContentWithTargetPath), so adding to
+        it at evaluation time is not enough - and an evaluation-time wildcard could not be given
+        the metadata either, since Metadata attributes apply only to the item they are written on,
+        which for a wildcard is the pattern and not what it expands to. $(RuntimeIdentifier) is the
+        other: a ProjectReference is resolved with its properties already set, so the RID the
+        consumer asked for does reach this project, but not before evaluation.
+    -->
+    <Target Name="AngleNativeLayout" BeforeTargets="AssignTargetPaths">
+        <PropertyGroup>
+            <!-- A build that named a RID means it - but it cannot be read from $(RuntimeIdentifier)
+                 here. When the SDK collects a project's copy-to-output items it invokes the project
+                 with the RID stripped from its properties, so a consumer's -r linux-x64 arrives as
+                 an empty RuntimeIdentifier and this project would fall back to the host and copy
+                 Windows DLLs into a linux-x64 output directory. Measured, not assumed: under -r
+                 linux-x64 both RuntimeIdentifier and the host are visible here and only the latter
+                 has a value. RuntimeIdentifier stays as a fallback for a direct reference to this
+                 project, and the consumer passes AngleNativeRid to say what it is targeting.
+
+                 NETCoreSdkRuntimeIdentifier is the last fallback and describes the machine doing the
+                 build, which is the best available answer: a RID-less build is one for the host, and
+                 that is the only platform it can be built for. Not every RID names a directory here
+                 either: the package ships one universal macOS build, so both of its RIDs fold onto
+                 osx. A RID outside the set matches nothing and so copies nothing, which is the
+                 honest outcome when there are no binaries for it. -->
+            <_AngleNativeRid Condition="'$(_AngleNativeRid)' == ''">$(AngleNativeRid)</_AngleNativeRid>
+            <_AngleNativeRid Condition="'$(_AngleNativeRid)' == ''">$(RuntimeIdentifier)</_AngleNativeRid>
+            <_AngleNativeRid Condition="'$(_AngleNativeRid)' == ''">$(NETCoreSdkRuntimeIdentifier)</_AngleNativeRid>
+            <_AngleNativeRid Condition="'$(_AngleNativeRid)' == 'osx-x64' Or '$(_AngleNativeRid)' == 'osx-arm64'">osx</_AngleNativeRid>
+
+            <!-- The library names follow the platform, not the architecture: every Windows RID ships
+                 .dll, both Linux ones .so, and macOS .dylib. Read off the RID directory rather than
+                 from RuntimeInformation, which would describe the machine doing the build and so
+                 answer for the wrong platform on a cross-targeted one. -->
+            <_AngleNativeExt Condition="$(_AngleNativeRid.StartsWith('win'))">.dll</_AngleNativeExt>
+            <_AngleNativeExt Condition="$(_AngleNativeRid.StartsWith('linux'))">.so</_AngleNativeExt>
+            <_AngleNativeExt Condition="$(_AngleNativeRid.StartsWith('osx'))">.dylib</_AngleNativeExt>
+        </PropertyGroup>
+
+        <ItemGroup>
+            <!-- Exists() guards each item, because a missing Include here is not a skipped copy but
+                 MSB3030, which fails the consumer's build. That matters for win-arm64 in particular:
+                 the RID is supported and its binaries are built, but they reach the repository from
+                 a CI job that commits them, so a checkout taken between those two points would
+                 otherwise break every Windows arm64 build that referenced this project. -->
+            <Content Include="runtimes\$(_AngleNativeRid)\native\libEGL$(_AngleNativeExt)" Condition="'$(_AngleNativeRid)' != '' And Exists('runtimes\$(_AngleNativeRid)\native\libEGL$(_AngleNativeExt)')">
+                <Link>libEGL$(_AngleNativeExt)</Link>
+                <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+                <Visible>false</Visible>
+            </Content>
+            <Content Include="runtimes\$(_AngleNativeRid)\native\libGLESv2$(_AngleNativeExt)" Condition="'$(_AngleNativeRid)' != '' And Exists('runtimes\$(_AngleNativeRid)\native\libGLESv2$(_AngleNativeExt)')">
+                <Link>libGLESv2$(_AngleNativeExt)</Link>
+                <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+                <Visible>false</Visible>
+            </Content>
+        </ItemGroup>
+    </Target>
 </Project>
